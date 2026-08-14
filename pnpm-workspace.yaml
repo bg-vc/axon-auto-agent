@@ -4,6 +4,9 @@ packages:
   - profiles/*
 overrides:
   '@electron/get': 3.1.0
+  'ejs@<3.1.10': 3.1.10
+  'semver@>=5.0.0 <5.7.2': 5.7.2
+  'semver@>=6.0.0 <6.3.1': 6.3.1
 allowBuilds:
   '@deepseek-ai/dsh-subprocess-local': true
   '@google/genai': true
