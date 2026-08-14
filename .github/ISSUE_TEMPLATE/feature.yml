@@ -1,0 +1,29 @@
+name: Feature idea
+description: Suggest something Axon should make possible.
+title: "[Idea] "
+labels: [idea]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to accomplish?
+      description: Describe the real task and where existing tools fall short.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What should Axon do?
+      description: Explain the experience you would want, without worrying about our current architecture.
+    validations:
+      required: true
+  - type: textarea
+    id: success
+    attributes:
+      label: What would a good result look like?
+      description: Add an example, expected output, or a way to tell that it worked.
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Links, screenshots, related projects, constraints, privacy concerns, or failure cases are welcome.

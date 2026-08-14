@@ -1,0 +1,53 @@
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
+
+# Build, packaging, and test output
+dist/
+build/
+out/
+release/
+coverage/
+.cache/
+.vite/
+.turbo/
+*.tsbuildinfo
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+tmp/
+temp/
+
+# Local databases and runtime state
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+runs/
+workspaces/
+projects/
+artifacts/
+outputs/
+exports/
+
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

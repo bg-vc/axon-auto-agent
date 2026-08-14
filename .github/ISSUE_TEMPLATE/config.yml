@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Architecture discussion
+    url: https://github.com/bg-vc/axon-auto-agent/discussions
+    about: Discuss broad product or architecture directions before proposing a large change.
