@@ -43,7 +43,7 @@ items as implemented features.
 - `apps/desktop/`: desktop shell and GUI only.
 - `packages/contracts/`: model-neutral goal, run, event, artifact, policy, and
   evaluation contracts.
-- `packages/runtime/`: Axon orchestration plugins mounted into DeepSeek Harness.
+- `packages/runtime/`: Axon Auto Agent orchestration plugins mounted into DeepSeek Harness.
 - `profiles/desktop/`: the composed DSH desktop profile and configuration patches.
 - `examples/`: reproducible vertical slices with evaluators and safe fixtures.
 - `runs/`, `workspaces/`, and `artifacts/`: local generated data; never commit them.

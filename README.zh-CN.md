@@ -8,14 +8,14 @@
 
 Axon Auto Agent 是一个为自主任务而生的开源桌面应用。
 
-你只需要描述想完成什么。Axon 会把目标变成一个可以长期运行的任务：查资料、调用工具、
-处理文件、编写代码、运行实验、检查结果、从失败中恢复，最后带着产物和证据回来，而不只是
-生成一段看上去正确的回答。
+你只需要描述想完成什么。Axon Auto Agent 会把目标变成一个可以长期运行的任务：
+查资料、调用工具、处理文件、编写代码、运行实验、检查结果、从失败中恢复，最后带着产物和证据
+回来，而不只是生成一段看上去正确的回答。
 
 这不是给聊天框多加几个按钮。它押注的是模型能力继续增长之后的软件形态：用户负责说清楚
 结果，系统负责找到通往结果的路径。
 
-Axon 基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 构建。
+Axon Auto Agent 基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 构建。
 它的插件架构让模型、工具、沙箱、记忆、Workflow 和界面都可以被替换。项目也吸收了
 [Karpathy 的 autoresearch](https://github.com/karpathy/autoresearch) 最重要的思想：
 真正的自主执行必须能够做出改变、测量结果、保留有效改进、丢弃失败尝试，并在没有人持续
@@ -31,13 +31,13 @@ Axon 基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 
 
 下一层真正重要的基础设施，不是更长的提示词，而是一个能让模型长期追逐目标的可靠环境。
 
-Axon 要做的就是这个环境。
+Axon Auto Agent 要做的就是这个环境。
 
 ## 它应该是什么体验
 
 产品从一个足够简单的桌面端开始：
 
-- 用正常语言告诉 Axon 最后想得到什么。
+- 用正常语言告诉 Axon Auto Agent 最后想得到什么。
 - 把允许使用的文件、网站、数据、代码仓库或工具交给它。
 - 看到真正有意义的进展，而不是满屏模型日志。
 - 在应用里直接预览文档、代码、数据集、图表、图片和其他产物。
@@ -70,18 +70,19 @@ Axon 要做的就是这个环境。
 
 ![Axon Auto Agent 架构——GUI、自主内核、DeepSeek Harness、插件和执行环境](docs/assets/axon-auto-agent-architecture.zh-CN.svg)
 
-Axon 把系统拆成五层：
+Axon Auto Agent 把系统拆成五层：
 
 1. **桌面 GUI** —— 目标、进展、决策、产物、历史和诊断。
-2. **Axon 自主内核** —— 验证、预算、检查点、故障恢复，以及决定任务是否应该继续的逻辑。
+2. **Axon Auto Agent 自主内核** —— 验证、预算、检查点、故障恢复，以及决定任务是否应该
+   继续的逻辑。
 3. **DeepSeek Harness** —— Session、Agent 执行、工具、Job、Workflow、Subagent、模型适配、
    策略约束和沙箱。
 4. **插件** —— 科研方法、业务能力、验证器、产物预览和外部系统集成。
 5. **执行环境** —— 本地电脑、容器、浏览器、远程主机、云端 GPU、API，以及未来的科研和
    物理设备。
 
-Axon 通过 DeepSeek Harness 公开的插件系统扩展能力，而不是维护一个私有 Fork。目标很直接：
-更换模型、工具、验证器或执行环境时，不需要把整个产品重新做一遍。
+Axon Auto Agent 通过 DeepSeek Harness 公开的插件系统扩展能力，而不是维护一个私有 Fork。
+目标很直接：更换模型、工具、验证器或执行环境时，不需要把整个产品重新做一遍。
 
 技术边界详见[架构说明](docs/ARCHITECTURE.md)。
 
@@ -116,8 +117,8 @@ Axon 通过 DeepSeek Harness 公开的插件系统扩展能力，而不是维护
 真正困难的是持久状态、验证器质量、奖励投机、安全调用工具、科研可复现、成本控制、局部失败
 后的恢复、跨机器执行、插件可信度，以及如何为高风险行为建立不可绕过的系统边界。
 
-其中一些问题会随着模型变强而减轻，另一些是必须直接解决的系统工程问题。Axon 同时面向这两类
-问题。
+其中一些问题会随着模型变强而减轻，另一些是必须直接解决的系统工程问题。
+Axon Auto Agent 同时面向这两类问题。
 
 ## 加入我们
 

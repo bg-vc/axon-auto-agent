@@ -1,6 +1,6 @@
 # Autonomy runtime
 
-Planned Axon-owned orchestration plugins mounted into DeepSeek Harness.
+Planned orchestration plugins owned by Axon Auto Agent and mounted into DeepSeek Harness.
 
 - [ ] Outcome-contract service.
 - [ ] Evaluation and checkpoint coordinator.

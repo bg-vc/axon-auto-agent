@@ -3,7 +3,7 @@
 ## Decision summary
 
 Axon Auto Agent is an out-of-tree product layer on top of DeepSeek Harness (DSH),
-not a fork of it. DSH owns the generic agent runtime. Axon owns the autonomy contract,
+not a fork of it. DSH owns the generic agent runtime. Axon Auto Agent owns the autonomy contract,
 the product state machine, and the desktop experience.
 
 The initial desktop integration target is **Electron + React** because DSH is a Node.js
@@ -11,9 +11,9 @@ and TypeScript runtime. Keeping the runtime inside the desktop host avoids shipp
 supervising a separate Node sidecar merely to preserve a smaller native shell. This is a
 packaging decision, not a license to put business logic in Electron IPC handlers.
 
-Axon desktop is the interaction reference—workspace isolation, contextual approvals,
+The Axon Auto Agent desktop experience is the interaction reference—workspace isolation, contextual approvals,
 business-level progress cards, artifact previews, and resumable runs—not a source-code
-dependency. This repository must not import private Go packages from Axon desktop.
+dependency. This repository must not import private Go packages from the existing desktop product.
 
 ## Layer model
 
@@ -21,7 +21,7 @@ dependency. This repository must not import private Go packages from Axon deskto
 Desktop GUI
   goal brief · live canvas · artifact viewers · approval cards · history
                               │ typed IPC
-Axon autonomy kernel
+Axon Auto Agent autonomy kernel
   outcome contract · run state · budgets · evaluators · checkpoints · retention
                               │ Cordis services/events
 DeepSeek Harness
@@ -40,8 +40,8 @@ agent loop.
 
 ## Upstream integration
 
-The desktop profile will compose the supported DSH bundles and Axon plugins through a
-profile package and `cordis.patch.yml`. Axon additions attach to documented extension
+The desktop profile will compose the supported DSH bundles and Axon Auto Agent plugins through a
+profile package and `cordis.patch.yml`. Extensions from Axon Auto Agent attach to documented extension
 points:
 
 - durable facts through session events;
@@ -53,11 +53,11 @@ points:
 - GUI projection from the append-only session event stream.
 
 DSH is currently a developer preview and explicitly permits compatibility-breaking
-changes. Axon will pin one tested upstream version, maintain a compatibility fixture, and
+changes. Axon Auto Agent will pin one tested upstream version, maintain a compatibility fixture, and
 upgrade through a dedicated adapter package. Application code must never depend on an
 undocumented DSH internal.
 
-## Axon-owned contracts
+## Contracts owned by Axon Auto Agent
 
 The following contracts will stay deliberately small until the first complete task
 proves what they actually need to contain:

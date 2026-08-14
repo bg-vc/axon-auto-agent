@@ -24,7 +24,7 @@
   <text x="160" y="421" class="sans body">最后要得到什么？</text>
   <line x1="118" y1="475" x2="386" y2="475" stroke="#c7bdae" stroke-width="2"/>
   <text x="118" y="510" class="sans small">上下文 · 边界</text><text x="118" y="542" class="sans small">预算 · 限制</text><text x="118" y="574" class="sans small">结果 · 证据</text>
-  <text x="800" y="338" text-anchor="middle" class="sans" font-size="16" font-weight="800" letter-spacing="3" fill="#ff6a4b">AXON 自主循环</text>
+  <text x="800" y="338" text-anchor="middle" class="sans" font-size="16" font-weight="800" letter-spacing="2" fill="#ff6a4b">AXON AUTO AGENT 自主循环</text>
   <circle cx="800" cy="454" r="68" fill="none" stroke="#ff3b18" stroke-width="4"/><circle cx="800" cy="454" r="17" fill="#ff3b18"/>
   <path d="M800 386A68 68 0 0 1 868 454" fill="none" stroke="#fff8ee" stroke-width="9" stroke-linecap="round"/><path d="M857 437l13 17-19 9" fill="none" stroke="#fff8ee" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
   <text x="800" y="557" text-anchor="middle" class="sans" font-size="21" font-weight="700" fill="#fff8ee">规划 → 执行 → 验证</text><text x="800" y="592" text-anchor="middle" class="mono" font-size="16" fill="#aaa39a">检查点 · 学习 · 恢复</text>

@@ -41,7 +41,7 @@
   <text x="118" y="542" class="sans small">Budget · limits</text>
   <text x="118" y="574" class="sans small">Result · proof</text>
 
-  <text x="800" y="338" text-anchor="middle" class="sans" font-size="16" font-weight="800" letter-spacing="3" fill="#ff6a4b">AXON AUTONOMY LOOP</text>
+  <text x="800" y="338" text-anchor="middle" class="sans" font-size="16" font-weight="800" letter-spacing="3" fill="#ff6a4b">AXON AUTO AGENT LOOP</text>
   <circle cx="800" cy="454" r="68" fill="none" stroke="#ff3b18" stroke-width="4"/>
   <circle cx="800" cy="454" r="17" fill="#ff3b18"/>
   <path d="M800 386A68 68 0 0 1 868 454" fill="none" stroke="#fff8ee" stroke-width="9" stroke-linecap="round"/>

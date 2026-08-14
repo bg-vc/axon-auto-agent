@@ -8,7 +8,7 @@
 
 Axon Auto Agent is an open-source desktop for autonomous work.
 
-You describe what you want to accomplish. Axon turns that goal into a long-running
+You describe what you want to accomplish. Axon Auto Agent turns that goal into a long-running
 process that can investigate, use tools, create files, run experiments, check its own
 work, recover from failure, and return with evidence—not just an answer.
 
@@ -16,7 +16,7 @@ This is not another chat box with more buttons. It is a bet on what software bec
 when models can handle increasingly complex work: the user states the outcome, while
 the system figures out how to get there.
 
-Axon is built on
+Axon Auto Agent is built on
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), whose plugin
 architecture makes the model, tools, sandbox, memory, workflows, and interface
 replaceable. It also takes a core lesson from
@@ -36,13 +36,13 @@ user has to babysit every step.
 The next important layer is not a bigger prompt. It is a reliable environment for
 models to pursue goals over time.
 
-Axon is building that environment.
+Axon Auto Agent is building that environment.
 
 ## What it should feel like
 
 The product begins with a simple desktop experience:
 
-- Tell Axon the result you want, in ordinary language.
+- Tell Axon Auto Agent the result you want, in ordinary language.
 - Add the files, websites, data, repositories, or tools it may use.
 - Watch meaningful progress instead of raw model noise.
 - Preview documents, code, datasets, charts, images, and other outputs in the app.
@@ -78,10 +78,10 @@ The model does not get to declare victory merely because its answer sounds convi
 
 ![Axon Auto Agent architecture — GUI, autonomy kernel, DeepSeek Harness, plugins, and execution providers](docs/assets/axon-auto-agent-architecture.svg)
 
-Axon separates the system into five layers:
+Axon Auto Agent separates the system into five layers:
 
 1. **Desktop GUI** — goals, progress, decisions, artifacts, history, and diagnostics.
-2. **Axon autonomy kernel** — evaluation, budgets, checkpoints, recovery, and the logic
+2. **Axon Auto Agent autonomy kernel** — evaluation, budgets, checkpoints, recovery, and the logic
    that decides whether work should continue.
 3. **DeepSeek Harness** — sessions, agent execution, tools, jobs, workflows, subagents,
    model adapters, policy enforcement, and sandboxing.
@@ -90,7 +90,7 @@ Axon separates the system into five layers:
 5. **Execution environments** — the local computer, containers, browsers, remote
    machines, cloud GPUs, APIs, and eventually scientific or physical instruments.
 
-Axon extends DeepSeek Harness through its public plugin system instead of maintaining a
+Axon Auto Agent extends DeepSeek Harness through its public plugin system instead of maintaining a
 private fork. The goal is simple: replace any model, tool, evaluator, or execution
 environment without rebuilding the product around it.
 
@@ -138,7 +138,7 @@ use, reproducible research, cost control, recovery after partial failure, cross-
 execution, plugin trust, and building system boundaries that high-risk actions cannot bypass.
 
 Some of these problems will become easier as models improve. Others are systems
-problems that have to be engineered directly. Axon exists to work on both.
+problems that have to be engineered directly. Axon Auto Agent exists to work on both.
 
 ## Join us
 

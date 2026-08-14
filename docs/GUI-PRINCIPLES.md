@@ -2,7 +2,7 @@
 
 ## The interface promise
 
-A user should be able to give Axon a meaningful outcome, understand what it is doing,
+A user should be able to give Axon Auto Agent a meaningful outcome, understand what it is doing,
 intervene at the right moment, inspect the result, and leave the application running
 without learning agent-framework vocabulary.
 
@@ -29,7 +29,7 @@ This is a conceptual information architecture, not a visual design lock.
 
 1. **Start with the outcome.** The first screen asks what should exist or be true when
    the work is complete, not which agent or tool the user wants to run.
-2. **Translate, then confirm.** Axon converts the brief into a short plan and asks
+2. **Translate, then confirm.** Axon Auto Agent converts the brief into a short plan and asks
    the user to confirm boundaries, deliverables, budget, and high-risk authority.
 3. **Show semantic progress.** “Comparing five sources” is useful; 8,413 streamed tokens
    are diagnostics. Milestones and evidence lead the interface.

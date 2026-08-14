@@ -1,6 +1,6 @@
 # Roadmap
 
-Axon will grow in one direction: first make a single long-running task trustworthy,
+Axon Auto Agent will grow in one direction: first make a single long-running task trustworthy,
 then make the same foundation useful across many kinds of work.
 
 This is not a calendar of promised features. It is the order in which we believe the
@@ -24,7 +24,7 @@ and continue from the same trustworthy state.
 
 ## Next — close the loop
 
-Once the desktop spine works, Axon needs to prove that it can improve work instead of
+Once the desktop spine works, Axon Auto Agent needs to prove that it can improve work instead of
 merely producing more of it.
 
 - [ ] Establish a baseline, make one change, evaluate it, keep or discard it, and repeat

@@ -1,5 +1,5 @@
 name: Feature idea
-description: Suggest something Axon should make possible.
+description: Suggest something Axon Auto Agent should make possible.
 title: "[Idea] "
 labels: [idea]
 body:
@@ -13,7 +13,7 @@ body:
   - type: textarea
     id: idea
     attributes:
-      label: What should Axon do?
+      label: What should Axon Auto Agent do?
       description: Explain the experience you would want, without worrying about our current architecture.
     validations:
       required: true

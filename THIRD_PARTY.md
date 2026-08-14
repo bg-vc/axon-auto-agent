@@ -12,7 +12,7 @@ product and is not affiliated with Andrej Karpathy.
   source is currently copied into this repository
 
 DeepSeek Harness is in developer preview and warns of compatibility-breaking changes.
-Axon support claims must name the exact tested DSH version.
+Axon Auto Agent support claims must name the exact tested DSH version.
 
 ## autoresearch
 
