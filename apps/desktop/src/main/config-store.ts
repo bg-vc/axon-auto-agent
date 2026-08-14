@@ -70,7 +70,10 @@ export class ConfigStore {
         developmentPluginPaths: stored.developmentPluginPaths ?? [],
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        await rename(this.configPath, `${this.configPath}.corrupt-${Date.now()}`).catch(() => undefined)
+        this.config = defaults()
+      }
       await this.persist()
     }
   }
@@ -81,7 +84,30 @@ export class ConfigStore {
   getDevelopmentPluginPaths(): string[] { return [...this.config.developmentPluginPaths] }
 
   async updateSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
-    this.config.settings = { ...this.config.settings, ...patch }
+    const next = { ...this.config.settings }
+    if (patch.language !== undefined) {
+      if (patch.language !== 'zh-CN' && patch.language !== 'en-US') throw new Error('Unsupported language setting.')
+      next.language = patch.language
+    }
+    if (patch.theme !== undefined) {
+      if (patch.theme !== 'dark' && patch.theme !== 'system') throw new Error('Unsupported theme setting.')
+      next.theme = patch.theme
+    }
+    for (const key of ['launchAtLogin', 'closeToTray', 'developerMode', 'allowNetwork', 'confirmWorkspaceWrites', 'confirmCommands'] as const) {
+      if (patch[key] !== undefined) {
+        if (typeof patch[key] !== 'boolean') throw new Error(`Invalid boolean setting: ${key}`)
+        next[key] = patch[key]
+      }
+    }
+    if (patch.defaultWorkspaceId !== undefined) {
+      if (!this.config.workspaces.some((workspace) => workspace.id === patch.defaultWorkspaceId)) throw new Error('Unknown default workspace.')
+      next.defaultWorkspaceId = patch.defaultWorkspaceId
+    }
+    if (patch.activeProviderId !== undefined) {
+      if (!this.config.providers.some((provider) => provider.id === patch.activeProviderId)) throw new Error('Unknown model provider.')
+      next.activeProviderId = patch.activeProviderId
+    }
+    this.config.settings = next
     await this.persist()
     return this.getSettings()
   }
@@ -104,19 +130,27 @@ export class ConfigStore {
   }
 
   async configureProvider(input: ProviderConfigurationInput): Promise<ProviderConfiguration> {
-    const current = this.config.providers.find((provider) => provider.id === input.id)
+    if (!input.id?.trim() || !input.name?.trim() || !input.model?.trim()) throw new Error('Provider name, ID, and model are required.')
+    const providerId = input.id.trim()
+    if (input.kind !== 'deepseek' && input.kind !== 'openai-compatible') throw new Error('Unsupported provider kind.')
+    let endpoint: URL
+    try { endpoint = new URL(input.endpoint) } catch { throw new Error('Provider endpoint is not a valid URL.') }
+    const localHttp = endpoint.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(endpoint.hostname)
+    if (endpoint.protocol !== 'https:' && !localHttp) throw new Error('Provider endpoint must use HTTPS, except for a local development endpoint.')
+    if (endpoint.username || endpoint.password) throw new Error('Provider endpoint cannot contain credentials.')
+    const current = this.config.providers.find((provider) => provider.id === providerId)
     const provider: ProviderConfiguration = {
-      id: input.id,
+      id: providerId,
       kind: input.kind,
-      name: input.name,
-      endpoint: input.endpoint.replace(/\/+$/, ''),
-      model: input.model,
-      enabled: input.enabled,
+      name: input.name.trim().slice(0, 80),
+      endpoint: endpoint.toString().replace(/\/+$/, ''),
+      model: input.model.trim().slice(0, 160),
+      enabled: input.enabled === true,
       hasCredential: Boolean(input.apiKey) || current?.hasCredential === true,
       updatedAt: now(),
     }
-    this.config.providers = [...this.config.providers.filter((item) => item.id !== input.id), provider]
-    if (input.apiKey) this.storeCredential(input.id, input.apiKey)
+    this.config.providers = [...this.config.providers.filter((item) => item.id !== providerId), provider]
+    if (input.apiKey) this.storeCredential(providerId, input.apiKey)
     await this.persist()
     return structuredClone(provider)
   }

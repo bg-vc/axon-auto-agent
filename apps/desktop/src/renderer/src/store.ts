@@ -33,7 +33,7 @@ interface AppState {
   removeAttachment(path: string): void
   createSession(title?: string): Promise<void>
   openSession(sessionId: string): Promise<void>
-  sendMessage(content: string): Promise<void>
+  sendMessage(content: string): Promise<boolean>
   stopSession(): Promise<void>
   resumeSession(): Promise<void>
   resolveDecision(id: string, approved: boolean): Promise<void>
@@ -146,16 +146,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   sendMessage: async (content) => {
     const text = content.trim()
-    if (!text) return
+    if (!text) return false
     try {
       if (!get().current) await get().createSession(text.slice(0, 42))
       const sessionId = get().current?.session.id
-      if (!sessionId) return
+      if (!sessionId) return false
       const attachments = get().attachments
-      set({ attachments: [], streamText: '', thinkingText: '' })
       await window.axonAutoAgent.session.send({ sessionId, content: text, attachments })
+      set({ attachments: get().attachments.filter((item) => !attachments.includes(item)), streamText: '', thinkingText: '' })
       await get().openSession(sessionId)
-    } catch (error) { set({ error: messageFromError(error) }) }
+      return true
+    } catch (error) { set({ error: messageFromError(error) }); return false }
   },
 
   stopSession: async () => { const id = get().current?.session.id; if (id) await window.axonAutoAgent.session.stop(id) },

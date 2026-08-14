@@ -27,9 +27,17 @@ let isQuitting = false
 let syncing = false
 
 const trustedSender = (event: IpcMainInvokeEvent): void => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) {
+    throw new Error('Rejected IPC call outside the main renderer frame.')
+  }
   const url = event.senderFrame?.url ?? ''
-  if (url.startsWith('file://')) return
-  if (!app.isPackaged && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)) return
+  const builtRenderer = pathToFileURL(path.join(__dirname, '../renderer/index.html')).toString()
+  if (url === builtRenderer || url.startsWith(`${builtRenderer}#`)) return
+  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+    try {
+      if (new URL(url).origin === new URL(process.env.ELECTRON_RENDERER_URL).origin) return
+    } catch { /* rejected below */ }
+  }
   throw new Error('Rejected IPC call from an untrusted renderer.')
 }
 
@@ -220,7 +228,7 @@ function registerIpc(): void {
   handle('runtime:exportDiagnostics', () => runtime.request<DiagnosticsExport>('runtime.exportDiagnostics'))
 }
 
-app.whenReady().then(async () => {
+async function bootstrap(): Promise<void> {
   config = new ConfigStore(app.getPath('userData'))
   await config.initialize()
   runtime = new RuntimeSupervisor(path.join(app.getPath('userData'), 'runtime'))
@@ -239,13 +247,24 @@ app.whenReady().then(async () => {
     return await net.fetch(pathToFileURL(artifactPath).toString())
   })
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    const scriptPolicy = app.isPackaged ? "script-src 'self';" : "script-src 'self' 'unsafe-inline';"
-    callback({ responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy': [`default-src 'self'; ${scriptPolicy} img-src 'self' data: axon-artifact:; media-src 'self' axon-artifact:; frame-src 'self' axon-artifact:; style-src 'self' 'unsafe-inline'; connect-src 'self' https: ws:;`] } })
+    const scriptPolicy = !app.isPackaged && process.env.ELECTRON_RENDERER_URL ? "script-src 'self' 'unsafe-inline';" : "script-src 'self';"
+    let connectPolicy = "connect-src 'self';"
+    if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+      const devUrl = new URL(process.env.ELECTRON_RENDERER_URL)
+      const websocketOrigin = `${devUrl.protocol === 'https:' ? 'wss:' : 'ws:'}//${devUrl.host}`
+      connectPolicy = `connect-src 'self' ${websocketOrigin};`
+    }
+    callback({ responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy': [`default-src 'self'; ${scriptPolicy} img-src 'self' data: axon-artifact:; media-src 'self' axon-artifact:; frame-src 'self' axon-artifact:; style-src 'self' 'unsafe-inline'; ${connectPolicy}`] } })
   })
   registerIpc()
   mainWindow = createWindow()
   tray = createTray()
   await syncRuntimeConfiguration()
+}
+
+app.whenReady().then(bootstrap).catch((error) => {
+  dialog.showErrorBox('Axon Auto Agent 无法启动', error instanceof Error ? error.message : String(error))
+  app.quit()
 })
 
 app.on('activate', () => {

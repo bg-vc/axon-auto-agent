@@ -15,6 +15,7 @@ export class RuntimeSupervisor extends EventEmitter {
   private pending = new Map<string, PendingRequest>()
   private stopping = false
   private restarting = false
+  private restartTimer?: NodeJS.Timeout
   private currentStatus: RuntimeStatus = {
     state: 'stopped', version: '0.1.0', harnessVersion: '0.1.0-rc.6', activeSessionIds: [], updatedAt: new Date().toISOString(),
   }
@@ -25,6 +26,7 @@ export class RuntimeSupervisor extends EventEmitter {
 
   async start(): Promise<void> {
     if (this.child) return
+    if (this.restartTimer) { clearTimeout(this.restartTimer); this.restartTimer = undefined }
     this.stopping = false
     this.setStatus({ ...this.currentStatus, state: 'starting', updatedAt: new Date().toISOString(), lastError: undefined })
     const child = utilityProcess.fork(this.runtimeEntry, ['--data-path', this.dataPath], {
@@ -35,30 +37,42 @@ export class RuntimeSupervisor extends EventEmitter {
     child.stdout?.on('data', (chunk) => this.emit('log', String(chunk)))
     child.stderr?.on('data', (chunk) => this.emit('log', String(chunk)))
     child.on('message', (message) => this.onMessage(message as RuntimeResponse | RuntimePushEvent))
-    child.on('exit', (_code) => this.onExit())
-    await this.waitForReady()
+    child.on('exit', (_code) => this.onExit(child))
+    try {
+      await this.waitForReady()
+    } catch (error) {
+      if (this.child === child) {
+        this.child = undefined
+        child.kill()
+      }
+      throw error
+    }
   }
 
   async stop(): Promise<void> {
     this.stopping = true
-    try { if (this.child) await this.request('runtime.shutdown', {}, 8_000) } catch { /* process may already be gone */ }
-    this.child?.kill()
-    this.child = undefined
+    if (this.restartTimer) { clearTimeout(this.restartTimer); this.restartTimer = undefined }
+    const child = this.child
+    try { if (child) await this.request('runtime.shutdown', {}, 8_000) } catch { /* process may already be gone */ }
+    child?.kill()
+    if (this.child === child) this.child = undefined
     this.rejectPending(new Error('Runtime stopped.'))
     this.setStatus({ ...this.currentStatus, state: 'stopped', activeSessionIds: [], updatedAt: new Date().toISOString() })
   }
 
   async restart(): Promise<RuntimeStatus> {
     this.restarting = true
-    await this.stop()
-    this.stopping = false
-    await this.start()
-    this.restarting = false
-    return this.status
+    try {
+      await this.stop()
+      this.stopping = false
+      await this.start()
+      return this.status
+    } finally { this.restarting = false }
   }
 
   async request<TResult = unknown>(method: string, params?: unknown, timeoutMs = 60_000): Promise<TResult> {
-    if (!this.child) throw new Error('Runtime is not running.')
+    const child = this.child
+    if (!child) throw new Error('Runtime is not running.')
     const id = randomUUID()
     const request: RuntimeRequest = { id, method, params }
     return await new Promise<TResult>((resolve, reject) => {
@@ -67,7 +81,14 @@ export class RuntimeSupervisor extends EventEmitter {
         reject(new Error(`Runtime request timed out: ${method}`))
       }, timeoutMs)
       this.pending.set(id, { resolve: (value) => resolve(value as TResult), reject, timer })
-      this.child?.postMessage(request)
+      try {
+        if (this.child !== child) throw new Error('Runtime restarted before the request was sent.')
+        child.postMessage(request)
+      } catch (error) {
+        clearTimeout(timer)
+        this.pending.delete(id)
+        reject(error instanceof Error ? error : new Error(String(error)))
+      }
     })
   }
 
@@ -85,12 +106,16 @@ export class RuntimeSupervisor extends EventEmitter {
     else pending.reject(new Error(message.error?.message ?? 'Runtime request failed.'))
   }
 
-  private onExit(): void {
+  private onExit(child: UtilityProcess): void {
+    if (this.child !== child) return
     this.child = undefined
     this.rejectPending(new Error('Runtime process exited.'))
     if (this.stopping || this.restarting) return
     this.setStatus({ ...this.currentStatus, state: 'crashed', lastError: 'Runtime process exited unexpectedly.', updatedAt: new Date().toISOString() })
-    setTimeout(() => { void this.start().catch((error) => this.setStatus({ ...this.currentStatus, state: 'crashed', lastError: String(error), updatedAt: new Date().toISOString() })) }, 1_000)
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = undefined
+      void this.start().catch((error) => this.setStatus({ ...this.currentStatus, state: 'crashed', lastError: String(error), updatedAt: new Date().toISOString() }))
+    }, 1_000)
   }
 
   private setStatus(status: RuntimeStatus): void {

@@ -50,6 +50,7 @@ export type ConversationEventType =
   | 'decision/resolved'
   | 'artifact/created'
   | 'run/started'
+  | 'run/interrupted'
   | 'run/stopped'
   | 'run/failed'
   | 'run/completed'

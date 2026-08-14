@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { exec as execCallback } from 'node:child_process'
 import { promisify } from 'node:util'
-import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type {
   AppSettings, ArtifactDescriptor, ConversationEvent, ConversationSnapshot,
@@ -23,7 +23,52 @@ interface RuntimeProvider extends ProviderConfiguration { apiKey?: string }
 interface RuntimeConfiguration { settings: AppSettings; providers: RuntimeProvider[]; workspaces: WorkspaceRef[] }
 interface InternalCreateSessionInput extends CreateSessionInput { workspace?: WorkspaceRef; provider?: RuntimeProvider }
 interface PendingDecision { request: DecisionRequest; resolve(approved: boolean): void }
+interface StoredAttachment { name: string; path: string; size: number; mediaType: string }
 type Push = (event: RuntimePushEvent) => void
+
+class StreamingSecretRedactor {
+  private buffer = ''
+  private readonly secrets: string[]
+  private readonly keepCharacters: number
+
+  constructor(secrets: Array<string | undefined>) {
+    this.secrets = [...new Set(secrets.filter((secret): secret is string => Boolean(secret)))].sort((left, right) => right.length - left.length)
+    this.keepCharacters = Math.max(0, ...this.secrets.map((secret) => secret.length - 1))
+  }
+
+  push(text: string): string {
+    this.buffer += text
+    let output = ''
+    while (this.buffer) {
+      const matches = this.secrets
+        .map((secret) => ({ secret, index: this.buffer.indexOf(secret) }))
+        .filter((match) => match.index >= 0)
+        .sort((left, right) => left.index - right.index || right.secret.length - left.secret.length)
+      const match = matches[0]
+      if (match) {
+        output += `${this.buffer.slice(0, match.index)}[REDACTED]`
+        this.buffer = this.buffer.slice(match.index + match.secret.length)
+        continue
+      }
+      const releaseLength = this.buffer.length - this.keepCharacters
+      if (releaseLength <= 0) break
+      output += this.buffer.slice(0, releaseLength)
+      this.buffer = this.buffer.slice(releaseLength)
+      break
+    }
+    return output
+  }
+
+  flush(): string {
+    const output = this.secrets.reduce((result, secret) => result.split(secret).join('[REDACTED]'), this.buffer)
+    this.buffer = ''
+    return output
+  }
+}
+
+const MAX_ATTACHMENT_COUNT = 5
+const MAX_ATTACHMENT_SIZE = 300_000
+const MAX_MODEL_CALL_MS = 10 * 60_000
 
 const BUILTIN_PLUGINS: PluginDescriptor[] = [
   { id: 'deepseek-harness', name: 'DeepSeek Harness Core', version: PINNED_HARNESS_VERSION, source: 'builtin', state: 'loaded', capabilities: ['sessions', 'agent-runtime', 'plugin-profile'] },
@@ -61,6 +106,7 @@ const TOOLS: ToolDefinition[] = [
 export class RuntimeService {
   private readonly events: AppendOnlyEventStore
   private readonly abortControllers = new Map<string, AbortController>()
+  private readonly runPromises = new Map<string, Promise<void>>()
   private readonly pendingDecisions = new Map<string, PendingDecision>()
   private readonly sequence = new Map<string, number>()
   private readonly plugins = new Map<string, PluginDescriptor>(BUILTIN_PLUGINS.map((plugin) => [plugin.id, plugin]))
@@ -85,6 +131,18 @@ export class RuntimeService {
     for (const sessionId of await this.events.listSessionIds()) {
       const sessionEvents = await this.events.read(sessionId)
       this.sequence.set(sessionId, sessionEvents.at(-1)?.seq ?? 0)
+      const snapshot = await this.openSession(sessionId)
+      for (const decision of snapshot.decisions.filter((item) => item.status === 'pending')) {
+        await this.emit(sessionId, 'decision/resolved', {
+          decisionId: decision.id, approved: false, reason: 'runtime-recovery',
+        })
+      }
+      if (snapshot.session.state === 'running' || snapshot.session.state === 'waiting_for_decision') {
+        await this.emit(sessionId, 'run/interrupted', {
+          reason: 'runtime-recovery',
+          message: 'The previous runtime exited before this task finished.',
+        })
+      }
     }
     this.pushStatus()
   }
@@ -125,19 +183,43 @@ export class RuntimeService {
   }
 
   private async sendMessage(input: SendMessageInput): Promise<void> {
-    if (this.abortControllers.has(input.sessionId)) throw new Error('This session is already running.')
-    const content = input.content.trim()
-    if (!content) throw new Error('Message cannot be empty.')
-    await this.emit(input.sessionId, 'user/message', { content, attachments: input.attachments ?? [] })
-    void this.runAgent(input.sessionId)
+    const controller = this.reserveRun(input.sessionId)
+    try {
+      await this.openSession(input.sessionId)
+      const content = input.content.trim()
+      if (!content) throw new Error('Message cannot be empty.')
+      const attachments = await this.stageAttachments(input.sessionId, input.attachments ?? [])
+      await this.emit(input.sessionId, 'user/message', { content, attachments })
+      this.launchRun(input.sessionId, controller)
+    } catch (error) {
+      if (this.abortControllers.get(input.sessionId) === controller) this.abortControllers.delete(input.sessionId)
+      this.pushStatus()
+      throw error
+    }
   }
 
-  private async runAgent(sessionId: string): Promise<void> {
+  private reserveRun(sessionId: string): AbortController {
+    if (this.abortControllers.has(sessionId)) throw new Error('This session is already running.')
     const controller = new AbortController()
     this.abortControllers.set(sessionId, controller)
     this.pushStatus()
-    await this.emit(sessionId, 'run/started', {})
+    return controller
+  }
+
+  private launchRun(sessionId: string, controller: AbortController): void {
+    const run = this.runAgent(sessionId, controller).catch((error) => {
+      this.status = { ...this.status, lastError: error instanceof Error ? error.message : String(error), updatedAt: isoNow() }
+      this.pushStatus()
+    })
+    this.runPromises.set(sessionId, run)
+    void run.finally(() => {
+      if (this.runPromises.get(sessionId) === run) this.runPromises.delete(sessionId)
+    })
+  }
+
+  private async runAgent(sessionId: string, controller: AbortController): Promise<void> {
     try {
+      await this.emit(sessionId, 'run/started', {})
       const snapshot = await this.openSession(sessionId)
       const created = snapshot.events.find((event) => event.type === 'session/created')
       const createdPayload = created?.payload as { workspace?: WorkspaceRef; providerId?: string; modelId?: string } | undefined
@@ -155,20 +237,42 @@ export class RuntimeService {
       messages.unshift(system)
 
       for (let turn = 0; turn < 8; turn += 1) {
-        let content = ''
-        let thinking = ''
+        let rawContent = ''
+        let rawThinking = ''
         let toolCalls: ToolCall[] = []
         let usage = { promptTokens: 0, completionTokens: 0 }
-        for await (const chunk of streamOpenAICompatible({ endpoint: provider.endpoint, apiKey: provider.apiKey, model: snapshot.session.modelId, messages, tools: TOOLS, signal: controller.signal })) {
+        const secrets = this.configuration?.providers.map((item) => item.apiKey) ?? []
+        const contentRedactor = new StreamingSecretRedactor(secrets)
+        const thinkingRedactor = new StreamingSecretRedactor(secrets)
+        const callSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(MAX_MODEL_CALL_MS)])
+        for await (const chunk of streamOpenAICompatible({ endpoint: provider.endpoint, apiKey: provider.apiKey, model: snapshot.session.modelId, messages, tools: TOOLS, signal: callSignal })) {
           if (chunk.type === 'content') {
-            content += chunk.text
-            this.push({ channel: 'conversation', payload: this.transientEvent(sessionId, 'assistant/delta', { content: chunk.text }) })
+            rawContent += chunk.text
+            const content = contentRedactor.push(chunk.text)
+            if (content) this.push({ channel: 'conversation', payload: this.transientEvent(sessionId, 'assistant/delta', { content }) })
           } else if (chunk.type === 'thinking') {
-            thinking += chunk.text
-            this.push({ channel: 'conversation', payload: this.transientEvent(sessionId, 'assistant/thinking', { content: chunk.text }) })
-          } else if (chunk.type === 'tool-calls') toolCalls = chunk.calls
+            rawThinking += chunk.text
+            const content = thinkingRedactor.push(chunk.text)
+            if (content) this.push({ channel: 'conversation', payload: this.transientEvent(sessionId, 'assistant/thinking', { content }) })
+          } else if (chunk.type === 'tool-calls') {
+            toolCalls = chunk.calls.map((call) => ({
+              ...call,
+              id: this.redactSecrets(call.id, secrets),
+              function: {
+                name: this.redactSecrets(call.function.name, secrets),
+                arguments: this.redactSecrets(call.function.arguments, secrets),
+              },
+            }))
+          }
           else if (chunk.type === 'usage') usage = { promptTokens: chunk.promptTokens, completionTokens: chunk.completionTokens }
         }
+        const finalContentDelta = contentRedactor.flush()
+        if (finalContentDelta) this.push({ channel: 'conversation', payload: this.transientEvent(sessionId, 'assistant/delta', { content: finalContentDelta }) })
+        const finalThinkingDelta = thinkingRedactor.flush()
+        if (finalThinkingDelta) this.push({ channel: 'conversation', payload: this.transientEvent(sessionId, 'assistant/thinking', { content: finalThinkingDelta }) })
+        const content = this.redactSecrets(rawContent, secrets)
+        const thinking = this.redactSecrets(rawThinking, secrets)
+        if (!content && !thinking && !toolCalls.length) throw new Error('The model returned an empty response.')
         if (thinking) await this.emit(sessionId, 'assistant/thinking', { content: thinking })
         await this.emit(sessionId, 'assistant/message', { content, toolCalls, usage })
         messages.push({ role: 'assistant', content: content || null, ...(toolCalls.length ? { tool_calls: toolCalls } : {}) })
@@ -177,21 +281,21 @@ export class RuntimeService {
           return
         }
         for (const call of toolCalls) {
-          const result = await this.executeTool(sessionId, workspace, call)
+          const result = await this.executeTool(sessionId, workspace, call, controller.signal)
           messages.push({ role: 'tool', tool_call_id: call.id, content: result })
         }
       }
       throw new Error('Agent exceeded the eight-turn tool budget.')
     } catch (error) {
       if (controller.signal.aborted) await this.emit(sessionId, 'run/stopped', { reason: 'user' })
-      else await this.emit(sessionId, 'run/failed', { message: error instanceof Error ? error.message : String(error) })
+      else await this.emit(sessionId, 'run/failed', { message: this.redactProviderSecrets(error instanceof Error ? error.message : String(error)) })
     } finally {
-      this.abortControllers.delete(sessionId)
+      if (this.abortControllers.get(sessionId) === controller) this.abortControllers.delete(sessionId)
       this.pushStatus()
     }
   }
 
-  private async executeTool(sessionId: string, workspace: WorkspaceRef, call: ToolCall): Promise<string> {
+  private async executeTool(sessionId: string, workspace: WorkspaceRef, call: ToolCall, signal: AbortSignal): Promise<string> {
     await this.emit(sessionId, 'tool/requested', { toolCallId: call.id, name: call.function.name, arguments: call.function.arguments })
     await this.emit(sessionId, 'tool/started', { toolCallId: call.id, name: call.function.name })
     try {
@@ -200,7 +304,7 @@ export class RuntimeService {
       if (call.function.name === 'list_workspace') result = await this.listWorkspace(workspace.path, String(args.path ?? '.'))
       else if (call.function.name === 'read_file') result = await this.readWorkspaceFile(workspace.path, String(args.path ?? ''))
       else if (call.function.name === 'write_file') result = await this.writeWorkspaceFile(sessionId, workspace.path, String(args.path ?? ''), String(args.content ?? ''))
-      else if (call.function.name === 'run_command') result = await this.runCommand(sessionId, workspace.path, String(args.command ?? ''))
+      else if (call.function.name === 'run_command') result = await this.runCommand(sessionId, workspace.path, String(args.command ?? ''), signal)
       else throw new Error(`Unknown tool: ${call.function.name}`)
       await this.emit(sessionId, 'tool/completed', { toolCallId: call.id, name: call.function.name, result })
       return result
@@ -243,13 +347,16 @@ export class RuntimeService {
     return `Saved ${path.relative(root, filePath)} (${info.size} bytes).`
   }
 
-  private async runCommand(sessionId: string, root: string, command: string): Promise<string> {
+  private async runCommand(sessionId: string, root: string, command: string, signal: AbortSignal): Promise<string> {
     if (!command.trim()) throw new Error('Command cannot be empty.')
     if (this.configuration?.settings.confirmCommands !== false) {
       const approved = await this.requestDecision(sessionId, 'command', '运行本地命令', 'Shell 命令可能访问工作区之外的系统资源。', command)
       if (!approved) throw new Error('The user denied the command.')
     }
-    const { stdout, stderr } = await exec(command, { cwd: root, timeout: 120_000, maxBuffer: 1_000_000, shell: process.platform === 'win32' ? undefined : '/bin/zsh' })
+    const { stdout, stderr } = await exec(command, {
+      cwd: root, timeout: 120_000, maxBuffer: 1_000_000,
+      shell: process.platform === 'win32' ? undefined : '/bin/zsh', signal,
+    })
     return `${stdout}${stderr ? `\nSTDERR:\n${stderr}` : ''}`.slice(0, 80_000) || '(command completed without output)'
   }
 
@@ -263,10 +370,32 @@ export class RuntimeService {
   private async resolveDecision(input: { decisionId: string; approved: boolean }): Promise<void> {
     const pending = this.pendingDecisions.get(input.decisionId)
     if (!pending) throw new Error('This decision is no longer pending. Resume the task to request it again.')
+    const approved = input.approved === true
+    await this.emit(pending.request.sessionId, 'decision/resolved', { decisionId: input.decisionId, approved })
     this.pendingDecisions.delete(input.decisionId)
-    await this.emit(pending.request.sessionId, 'decision/resolved', { decisionId: input.decisionId, approved: input.approved })
-    pending.resolve(input.approved)
+    pending.resolve(approved)
     this.pushStatus()
+  }
+
+  private async stageAttachments(sessionId: string, sourcePaths: string[]): Promise<StoredAttachment[]> {
+    if (sourcePaths.length > MAX_ATTACHMENT_COUNT) throw new Error(`You can attach up to ${MAX_ATTACHMENT_COUNT} files per message.`)
+    const candidates: StoredAttachment[] = []
+    for (const sourcePath of sourcePaths) {
+      const info = await stat(sourcePath)
+      if (!info.isFile()) throw new Error(`${path.basename(sourcePath)} is not a file.`)
+      if (info.size > MAX_ATTACHMENT_SIZE) throw new Error(`${path.basename(sourcePath)} exceeds the ${MAX_ATTACHMENT_SIZE / 1_000} KB attachment limit.`)
+      const mediaType = mediaTypeForPath(sourcePath)
+      if (!mediaType.startsWith('text/') && mediaType !== 'application/json') {
+        throw new Error(`${path.basename(sourcePath)} is not a supported text attachment.`)
+      }
+      const attachmentPath = path.join(this.dataPath, 'attachments', sessionId, `${randomUUID()}${path.extname(sourcePath).slice(0, 20)}`)
+      candidates.push({ name: path.basename(sourcePath), path: attachmentPath, size: info.size, mediaType })
+    }
+    for (const [index, attachment] of candidates.entries()) {
+      await mkdir(path.dirname(attachment.path), { recursive: true })
+      await copyFile(sourcePaths[index], attachment.path)
+    }
+    return candidates
   }
 
   private async buildMessages(events: ConversationEvent[], workspace: WorkspaceRef): Promise<ChatMessage[]> {
@@ -275,12 +404,17 @@ export class RuntimeService {
       const payload = event.payload as Record<string, unknown>
       if (event.type === 'user/message') {
         let content = String(payload.content ?? '')
-        const attachments = Array.isArray(payload.attachments) ? payload.attachments.map(String) : []
-        for (const attachment of attachments.slice(0, 5)) {
+        const attachments = Array.isArray(payload.attachments) ? payload.attachments.slice(0, MAX_ATTACHMENT_COUNT) : []
+        for (const rawAttachment of attachments) {
+          const attachment = typeof rawAttachment === 'string'
+            ? { name: path.basename(rawAttachment), path: rawAttachment }
+            : rawAttachment as Partial<StoredAttachment>
+          const attachmentPath = attachment.path ?? ''
           try {
-            const info = await stat(attachment)
-            if (info.isFile() && info.size <= 200_000) content += `\n\n--- Attached file: ${path.basename(attachment)} ---\n${await readFile(attachment, 'utf8')}`
-          } catch { content += `\n\n[Attachment unavailable: ${path.basename(attachment)}]` }
+            const info = await stat(attachmentPath)
+            if (!info.isFile() || info.size > MAX_ATTACHMENT_SIZE) throw new Error('unavailable')
+            content += `\n\n--- Attached file: ${attachment.name ?? path.basename(attachmentPath)} ---\n${await readFile(attachmentPath, 'utf8')}`
+          } catch { content += `\n\n[Attachment unavailable: ${attachment.name ?? path.basename(attachmentPath)}]` }
         }
         messages.push({ role: 'user', content })
       } else if (event.type === 'assistant/message') {
@@ -291,24 +425,63 @@ export class RuntimeService {
       }
     }
     void workspace
-    while (messages.at(-1)?.role === 'assistant' && messages.at(-1)?.tool_calls?.length) messages.pop()
-    return messages
+    return this.sanitizeToolTranscript(messages)
+  }
+
+  private sanitizeToolTranscript(messages: ChatMessage[]): ChatMessage[] {
+    const sanitized: ChatMessage[] = []
+    for (let index = 0; index < messages.length; index += 1) {
+      const message = messages[index]
+      if (message.role === 'tool') continue
+      if (message.role !== 'assistant' || !message.tool_calls?.length) {
+        sanitized.push(message)
+        continue
+      }
+      const expected = new Set(message.tool_calls.map((call) => call.id))
+      const results: ChatMessage[] = []
+      let cursor = index + 1
+      while (cursor < messages.length && messages[cursor].role === 'tool') {
+        if (expected.has(messages[cursor].tool_call_id ?? '')) results.push(messages[cursor])
+        cursor += 1
+      }
+      const completed = new Set(results.map((result) => result.tool_call_id))
+      if ([...expected].every((id) => completed.has(id))) sanitized.push(message, ...results)
+      index = cursor - 1
+    }
+    return sanitized
   }
 
   private async stopSession(sessionId: string): Promise<void> {
-    this.abortControllers.get(sessionId)?.abort()
+    const controller = this.abortControllers.get(sessionId)
+    if (!controller) throw new Error('This session is not running.')
+    controller.abort()
     for (const [id, pending] of this.pendingDecisions) {
-      if (pending.request.sessionId === sessionId) { this.pendingDecisions.delete(id); pending.resolve(false) }
+      if (pending.request.sessionId === sessionId) {
+        this.pendingDecisions.delete(id)
+        try {
+          await this.emit(sessionId, 'decision/resolved', { decisionId: id, approved: false, reason: 'user-stop' })
+        } finally { pending.resolve(false) }
+      }
     }
+    await this.runPromises.get(sessionId)
   }
 
   private async resumeSession(sessionId: string): Promise<void> {
-    if (this.abortControllers.has(sessionId)) return
-    const snapshot = await this.openSession(sessionId)
-    for (const decision of snapshot.decisions.filter((item) => item.status === 'pending')) {
-      await this.emit(sessionId, 'decision/resolved', { decisionId: decision.id, approved: false, reason: 'runtime-recovery' })
+    const controller = this.reserveRun(sessionId)
+    try {
+      const snapshot = await this.openSession(sessionId)
+      if (snapshot.session.state !== 'stopped' && snapshot.session.state !== 'failed') {
+        throw new Error('Only stopped or failed tasks can be resumed.')
+      }
+      for (const decision of snapshot.decisions.filter((item) => item.status === 'pending')) {
+        await this.emit(sessionId, 'decision/resolved', { decisionId: decision.id, approved: false, reason: 'runtime-recovery' })
+      }
+      this.launchRun(sessionId, controller)
+    } catch (error) {
+      if (this.abortControllers.get(sessionId) === controller) this.abortControllers.delete(sessionId)
+      this.pushStatus()
+      throw error
     }
-    void this.runAgent(sessionId)
   }
 
   private async listSessions(): Promise<SessionSummary[]> {
@@ -345,7 +518,7 @@ export class RuntimeService {
       if (event.type === 'decision/requested') state = 'waiting_for_decision'
       if (event.type === 'decision/resolved') state = 'running'
       if (event.type === 'run/completed') state = 'idle'
-      if (event.type === 'run/stopped') state = 'stopped'
+      if (event.type === 'run/stopped' || event.type === 'run/interrupted') state = 'stopped'
       if (event.type === 'run/failed') state = 'failed'
     }
     if (this.abortControllers.has(sessionId) && [...decisions.values()].some((decision) => decision.status === 'pending')) state = 'waiting_for_decision'
@@ -379,7 +552,10 @@ export class RuntimeService {
     try {
       const result = await testOpenAICompatible(provider.endpoint, provider.apiKey, provider.model, AbortSignal.timeout(30_000))
       return { ok: true, message: result || '连接成功。' }
-    } catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error) } }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { ok: false, message: this.redactSecrets(message, [provider.apiKey]) }
+    }
   }
 
   private async loadPlugin(pluginPath: string): Promise<PluginDescriptor> {
@@ -430,10 +606,26 @@ export class RuntimeService {
 
   private async shutdown(): Promise<void> {
     for (const controller of this.abortControllers.values()) controller.abort()
-    for (const pending of this.pendingDecisions.values()) pending.resolve(false)
-    this.pendingDecisions.clear()
+    for (const [id, pending] of this.pendingDecisions) {
+      this.pendingDecisions.delete(id)
+      try {
+        await this.emit(pending.request.sessionId, 'decision/resolved', { decisionId: id, approved: false, reason: 'runtime-shutdown' })
+      } finally { pending.resolve(false) }
+    }
+    await Promise.race([
+      Promise.allSettled([...this.runPromises.values()]),
+      new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+    ])
     this.status = { ...this.status, state: 'stopped', activeSessionIds: [], updatedAt: isoNow() }
     this.pushStatus()
+  }
+
+  private redactProviderSecrets(message: string): string {
+    return this.redactSecrets(message, this.configuration?.providers.map((provider) => provider.apiKey) ?? [])
+  }
+
+  private redactSecrets(message: string, secrets: Array<string | undefined>): string {
+    return secrets.reduce<string>((result, secret) => secret ? result.split(secret).join('[REDACTED]') : result, message)
   }
 
   private pushStatus(): void {
