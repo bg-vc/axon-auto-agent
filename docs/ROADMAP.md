@@ -10,17 +10,21 @@ hard problems should be solved.
 
 The first release should prove a complete experience, not a collection of demos.
 
-- [ ] Package a pinned DeepSeek Harness runtime inside the desktop app.
-- [ ] Start from a plain-language goal without exposing Node.js, a terminal, or runtime
+- [x] Package DeepSeek Harness `0.1.0-rc.6` and its desktop profile inside the app.
+- [x] Start from a plain-language goal without exposing Node.js, a terminal, or runtime
   setup to the user.
-- [ ] Show progress, important decisions, boundary crossings, artifacts, and failures in a focused
+- [x] Show progress, important decisions, boundary crossings, artifacts, and failures in a focused
   React interface.
-- [ ] Persist the run as an event stream and restore the same visible state after a crash
-  or restart.
-- [ ] Complete one bounded, read-only task and return a real artifact with evidence.
+- [x] Persist conversation and tool facts as an append-only event stream and rebuild the
+  same visible state after reopening a session.
+- [x] Read a bounded workspace and generate a real local artifact through an approved tool call.
+- [ ] Resume an interrupted tool action from a durable checkpoint instead of requiring
+  the user to explicitly continue the recovered session.
+- [ ] Sign, notarize, install, run, and uninstall the macOS arm64 DMG in a clean user account.
 
-The milestone is done when a development build can be closed during a task, reopened,
-and continue from the same trustworthy state.
+The milestone is done when a signed build can be closed during a task, reopened, and
+continue from the same trustworthy state. A restarted Runtime currently restores events
+and marks interruption honestly; it does not pretend an unfinished action completed.
 
 ## Next — close the loop
 
@@ -47,8 +51,8 @@ cannot declare success with persuasive prose alone.
 - [ ] Support multiple model providers without moving provider-specific assumptions into
   the autonomy kernel.
 - [ ] Publish a plugin SDK, compatibility tests, trust metadata, and example evaluators.
-- [ ] Let background tasks continue without keeping the main window open, with useful
-  notifications when the user is actually needed.
+- [x] Let tasks continue while the main window is hidden in the system tray.
+- [ ] Add useful system notifications when a background task needs a decision or finishes.
 
 At this point, unrelated use cases should share the same core and interface. If every
 new domain needs a new orchestration stack, the architecture has failed.

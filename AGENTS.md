@@ -1,8 +1,8 @@
 # Axon Auto Agent
 
 This repository is the GUI-first autonomous-work project built on DeepSeek Harness.
-It is currently a documentation and architecture scaffold. Do not present roadmap
-items as implemented features.
+It contains a runnable desktop development build. Describe only capabilities verified by
+the code and tests, and do not present remaining roadmap items as implemented features.
 
 ## Product rules
 

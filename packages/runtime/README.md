@@ -1,12 +1,8 @@
-# Autonomy runtime
+# Runtime adapter
 
-Planned orchestration plugins owned by Axon Auto Agent and mounted into DeepSeek Harness.
+The runtime package owns the stable boundary between the desktop process and the
+developer-preview DeepSeek Harness packages. It also contains the append-only event
+store, OpenAI-compatible stream parser, workspace confinement helpers, and development
+plugin validator used by the desktop utility process.
 
-- [ ] Outcome-contract service.
-- [ ] Evaluation and checkpoint coordinator.
-- [ ] Budget and authority policy.
-- [ ] GUI projection bridge over durable session events.
-- [ ] Pinned DSH compatibility probes.
-
-The runtime extends documented DSH seams. It does not fork or replace the generic agent
-loop.
+Application UI code must not import DeepSeek Harness packages directly.

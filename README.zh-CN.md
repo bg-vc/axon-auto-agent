@@ -98,17 +98,49 @@ Axon Auto Agent 通过 DeepSeek Harness 公开的插件系统扩展能力，而�
 
 不同领域需要不同插件，也需要不同的成功判断方式，但不应该为每个领域重写一套自主循环。
 
-## 从哪里开始
+## 当前已经可用
 
-当前仓库完成的是地基：产品方向、GUI 原则、技术架构、社区规范和实现边界。现在还没有可运行
-版本。
+这个仓库已经不只是产品设想，而是包含一个可运行、macOS 优先的开发版本：
 
-第一个公开里程碑会非常聚焦：做出一个桌面应用，能够执行一个边界明确的目标，清楚展示自己
-正在做什么，在越过预设边界前清楚说明风险，生成一个真实产物，并在应用重启后恢复同一个任务。
+- Electron 43 桌面端，Main、沙箱 Renderer、类型化 Preload 桥和受监控的 Utility Process
+  彼此隔离；
+- 支持 DeepSeek 与通用 OpenAI-compatible BYOK，包含连接测试和流式响应；
+- 支持选择工作区、显式添加附件、受边界约束的文件读取、需确认的文件写入和命令执行，
+  并可在应用内预览本地产物；
+- 使用追加式 JSONL 事件保存会话，支持重放、停止、恢复、Runtime 崩溃检测，以及关闭窗口后
+  留在托盘继续执行；
+- API Key 通过系统钥匙串/Electron `safeStorage` 保护；
+- 内置插件固定随应用发布，本地开发插件经过校验后只在 Runtime 进程加载。
 
-之后再逐步加入更强的验证器、更丰富的产物、远程执行、更多模型、更多插件和多 Agent 协作。
+DeepSeek Harness 固定为 npm 实际发布的 `0.1.0-rc.6`，并经过独立兼容性探测。原计划中的
+`0.1.0-rc.5` 并不存在。当前交互执行链使用 Axon 的稳定 OpenAI-compatible 适配器，DSH 原生
+Agent Loop 将继续通过兼容层逐步接入；桌面端没有嵌入或换皮 Harness WebUI。
 
-详见[路线图](docs/ROADMAP.md)和 [GUI 原则](docs/GUI-PRINCIPLES.md)。
+## 运行开发版本
+
+开发环境需要 Node.js 22.19+ 和 pnpm 11。最终打包应用的普通用户不需要安装 Node.js，也不需要
+打开终端。
+
+```bash
+pnpm install
+pnpm dev
+```
+
+使用 `pnpm check` 运行完整检查，使用 `pnpm test:e2e` 启动真实 Electron 冒烟测试，使用
+`pnpm package:mac` 生成本地 macOS 安装产物。公开发布的 DMG 仍需要 Apple Developer 证书
+和 Notarization 凭据。
+
+## 正在完善
+
+下一个公开里程碑是完成签名并在全新系统验证的 DMG：它必须完成一个边界清晰的目标，在中断后
+诚实恢复，并交付可验证产物。当前事件流能够恢复页面状态，Runtime 崩溃后也会自动重启；但被
+中断的动作必须由用户明确恢复，绝不会被静默标成成功。
+
+命令工具已经有审批边界，但还不是操作系统级命令沙箱。远程执行、云同步、插件市场、完整英文
+界面和独立后台系统服务都尚未完成，项目不会提前宣称这些能力。
+
+详见[路线图](docs/ROADMAP.md)、[架构说明](docs/ARCHITECTURE.md)和
+[GUI 原则](docs/GUI-PRINCIPLES.md)。
 
 ## 真正的难题就是项目本身
 

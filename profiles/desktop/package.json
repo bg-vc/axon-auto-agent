@@ -1,0 +1,7 @@
+{
+  "name": "@axon-auto-agent/desktop-profile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@deepseek-ai/dsh": "0.1.0-rc.6" }
+}

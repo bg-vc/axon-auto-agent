@@ -6,16 +6,39 @@ Axon Auto Agent is an out-of-tree product layer on top of DeepSeek Harness (DSH)
 not a fork of it. DSH owns the generic agent runtime. Axon Auto Agent owns the autonomy contract,
 the product state machine, and the desktop experience.
 
-The initial desktop integration target is **Electron + React** because DSH is a Node.js
-and TypeScript runtime. Keeping the runtime inside the desktop host avoids shipping and
-supervising a separate Node sidecar merely to preserve a smaller native shell. This is a
-packaging decision, not a license to put business logic in Electron IPC handlers.
+The initial desktop implementation is **Electron + React** because DSH is a Node.js and
+TypeScript runtime. Harness-facing code runs in an Electron Utility Process, not in Main
+or Renderer. This avoids a separately installed Node sidecar while retaining a real process
+boundary and crash supervision. It is a packaging decision, not a license to put business
+logic in Electron IPC handlers.
 
 The Axon Auto Agent desktop experience is the interaction reference—workspace isolation, contextual approvals,
 business-level progress cards, artifact previews, and resumable runs—not a source-code
 dependency. This repository must not import private Go packages from the existing desktop product.
 
-## Layer model
+## Shipping process model
+
+```text
+React Renderer
+  home · conversation · approvals · artifacts · settings
+                         │ window.axonAutoAgent (typed whitelist)
+Sandboxed Preload        │ no generic ipcRenderer
+                         ↓
+Electron Main
+  window · tray · dialogs · keychain · updates · custom artifact protocol
+                         │ request/response + durable events
+                         ↓
+Utility Process
+  compatibility adapter · sessions · agent loop · tools · plugins · event store
+                         ↓
+Selected workspace · model API · approved external tools
+```
+
+Main supervises and restarts the Utility Process. Renderer never receives API keys or
+arbitrary filesystem access. Artifact previews use `axon-artifact://`; arbitrary `file://`
+paths are not exposed to web content.
+
+## Long-term layer model
 
 ```text
 Desktop GUI
@@ -40,9 +63,14 @@ agent loop.
 
 ## Upstream integration
 
-The desktop profile will compose the supported DSH bundles and Axon Auto Agent plugins through a
-profile package and `cordis.patch.yml`. Extensions from Axon Auto Agent attach to documented extension
-points:
+The desktop profile pins DSH `0.1.0-rc.6` and performs a boot-time compatibility probe.
+The published DSH headless entry points and Web host are still developer-preview surfaces,
+so the current interactive path is translated through Axon's stable runtime contracts and
+OpenAI-compatible streaming adapter. Native DSH Agent Loop/profile composition will replace
+that implementation behind the same boundary as its public APIs stabilize.
+
+The target integration composes supported DSH bundles and Axon Auto Agent plugins through
+a profile package and documented extension points:
 
 - durable facts through session events;
 - guarded work through the tool execution pipeline;
@@ -121,8 +149,9 @@ rebuildable from stored events so refresh and restart cannot disagree with live 
 
 ## Open technical decisions
 
-- [ ] Validate Electron boot, shutdown, auto-update, crash recovery,
-  package size, and macOS/Windows signing before declaring the shell final.
+- [ ] Complete signed/notarized macOS and Windows clean-machine install tests before
+  declaring the shell final. Boot, typed IPC, Utility Process restart, and unsigned macOS
+  directory packaging already have automated coverage.
 - [ ] Select the local event store only after replay and migration fixtures
   exist; SQLite is the leading candidate, not an accepted dependency.
 - [ ] Decide how third-party DSH plugins are discovered, reviewed,

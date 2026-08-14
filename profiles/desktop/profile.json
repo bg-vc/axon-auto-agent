@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "axon-auto-agent-desktop",
+  "harnessVersion": "0.1.0-rc.6",
+  "renderer": "custom-react",
+  "runtimeProcess": "electron-utility-process",
+  "builtinCapabilities": [
+    "sessions",
+    "openai-compatible-models",
+    "workspace-filesystem",
+    "guarded-shell",
+    "artifact-projection",
+    "development-plugin-loader"
+  ]
+}

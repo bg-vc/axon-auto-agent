@@ -1,10 +1,7 @@
 # Contracts
 
-Planned model-neutral and UI-neutral contracts for outcomes, runs, events, artifacts,
-evaluations, decisions, policies, budgets, and checkpoints.
+Model-neutral desktop/runtime contracts for workspaces, sessions, conversation events,
+decisions, artifacts, providers, plugins, settings, and the typed preload bridge.
 
-- [ ] Prove the minimum schema through one vertical slice.
-- [ ] Publish versioned JSON Schemas and compatibility fixtures.
-- [ ] Define migration and unknown-event behavior before persistence.
-
-Do not select a database schema before the replayable wire contracts exist.
+The contracts are independent from Electron and DeepSeek Harness. The runtime adapter
+is the only layer allowed to translate upstream events into these types.

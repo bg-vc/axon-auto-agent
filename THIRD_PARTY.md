@@ -6,13 +6,14 @@ product and is not affiliated with Andrej Karpathy.
 ## DeepSeek Harness
 
 - Project: <https://github.com/deepseek-ai/deepseek-harness>
-- Role: planned upstream agent runtime and plugin platform
+- Role: pinned upstream runtime dependency, compatibility target, and plugin platform
 - License: MIT
 - Integration policy: versioned dependency and out-of-tree profile/plugins; no upstream
-  source is currently copied into this repository
+  source is copied into this repository
 
 DeepSeek Harness is in developer preview and warns of compatibility-breaking changes.
-Axon Auto Agent support claims must name the exact tested DSH version.
+The desktop profile currently tests and packages `0.1.0-rc.6`; the application-facing
+contracts deliberately do not expose undocumented DSH internals.
 
 ## autoresearch
 

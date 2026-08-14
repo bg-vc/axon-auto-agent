@@ -9,6 +9,12 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "check": "node scripts/validate-scaffold.mjs"
+    "dev": "pnpm --filter @axon-auto-agent/desktop dev",
+    "build": "pnpm --filter @axon-auto-agent/contracts build && pnpm --filter @axon-auto-agent/runtime build && pnpm --filter @axon-auto-agent/desktop build",
+    "package:mac": "pnpm build && pnpm --filter @axon-auto-agent/desktop package:mac",
+    "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm build && pnpm --filter @axon-auto-agent/desktop test:e2e",
+    "typecheck": "pnpm --filter @axon-auto-agent/contracts build && pnpm --filter @axon-auto-agent/runtime build && pnpm -r --if-present typecheck",
+    "check": "node scripts/validate-scaffold.mjs && pnpm typecheck && pnpm test && pnpm build"
   }
 }

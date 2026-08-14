@@ -114,20 +114,55 @@ The same foundation can support very different kinds of work:
 Every domain needs different plugins and different ways to judge success. The autonomy
 loop should not need to be rewritten for each one.
 
-## Where it starts
+## Available today
 
-The repository is currently the foundation: the product direction, GUI principles,
-architecture, community rules, and implementation boundaries are in place. There is no
-runnable release yet.
+The repository now contains a runnable macOS-first development build, not only a product
+proposal. It includes:
 
-The first public milestone is deliberately focused: a desktop application that can run
-one bounded goal, show its work clearly, explain the risk before crossing a configured
-boundary, produce a real artifact, and recover the same task after the application restarts.
+- an Electron 43 desktop with isolated Main, sandboxed Renderer, typed Preload bridge,
+  and a supervised Utility Process;
+- DeepSeek and generic OpenAI-compatible BYOK providers with connection tests and
+  streamed responses;
+- workspace selection, explicit attachments, bounded file reads, approved file writes,
+  approved shell commands, and local artifact previews;
+- append-only JSONL conversation events, session replay, stop/resume, Runtime crash
+  detection, and close-to-tray background execution;
+- local credential protection through the OS keychain/Electron `safeStorage`;
+- fixed built-in plugins and validated local development plugins loaded only inside the
+  Runtime process.
 
-After that, the project expands through better evaluators, richer artifacts, remote
-execution, more models, more plugins, and multiple cooperating agents.
+DeepSeek Harness is pinned to the real published version `0.1.0-rc.6` behind a compatibility
+probe. The planned `0.1.0-rc.5` package does not exist in npm. The current interactive path
+uses Axon's stable OpenAI-compatible adapter while native DSH Agent Loop composition is
+integrated incrementally; the application does not embed or reskin the Harness WebUI.
 
-See the [roadmap](docs/ROADMAP.md) and [GUI principles](docs/GUI-PRINCIPLES.md).
+## Run the development build
+
+Development requires Node.js 22.19+ and pnpm 11. End users of a packaged build do not need
+Node.js or a terminal.
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Run the full checks with `pnpm check`, the real Electron smoke test with `pnpm test:e2e`,
+and build an unsigned local macOS artifact with `pnpm package:mac`. A public DMG still needs
+an Apple Developer identity and notarization credentials.
+
+## In development
+
+The next public milestone is a signed, clean-machine-verified DMG that can complete one
+bounded goal, recover honestly after interruption, and produce a verifiable artifact.
+Today the event stream restores visible state and a crashed Runtime is restarted, but an
+interrupted action requires an explicit resume; it is never silently reported as complete.
+
+The command tool is approval-gated but is not yet an OS-level command sandbox. Remote
+execution, cloud sync, a plugin marketplace, full English localization, and an independent
+background system service are intentionally not claimed.
+
+See the [roadmap](docs/ROADMAP.md), [architecture notes](docs/ARCHITECTURE.md), and
+[GUI principles](docs/GUI-PRINCIPLES.md).
 
 ## The hard problems are the project
 
