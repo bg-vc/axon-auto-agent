@@ -18,13 +18,25 @@ The first release should prove a complete experience, not a collection of demos.
 - [x] Persist conversation and tool facts as an append-only event stream and rebuild the
   same visible state after reopening a session.
 - [x] Read a bounded workspace and generate a real local artifact through an approved tool call.
+- [x] Reconcile stale approvals and interrupted Runtime state without reporting false
+  success, and cover cancellation, attachment snapshots, credential redaction, and replay
+  with failure-path tests.
+- [x] Complete a full dependency audit with zero known vulnerabilities in the current lockfile.
+- [ ] Replace the compatibility OpenAI loop with native DSH Agent Loop and desktop profile
+  composition behind the stable Runtime contract.
+- [ ] Serialize same-session appends in the event store and recover a corrupt JSONL tail
+  before introducing schema migrations or replacing the store.
 - [ ] Resume an interrupted tool action from a durable checkpoint instead of requiring
   the user to explicitly continue the recovered session.
+- [ ] Define a measured application-size budget and remove unused Harness dependencies only
+  after the native profile fixture identifies the plugin tree required at runtime.
 - [ ] Sign, notarize, install, run, and uninstall the macOS arm64 DMG in a clean user account.
 
 The milestone is done when a signed build can be closed during a task, reopened, and
 continue from the same trustworthy state. A restarted Runtime currently restores events
 and marks interruption honestly; it does not pretend an unfinished action completed.
+The release gates are defined in the
+[desktop reliability specification](specs/DESKTOP-RUNTIME-RELIABILITY.md).
 
 ## Next — close the loop
 

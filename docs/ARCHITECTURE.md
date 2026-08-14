@@ -85,6 +85,9 @@ changes. Axon Auto Agent will pin one tested upstream version, maintain a compat
 upgrade through a dedicated adapter package. Application code must never depend on an
 undocumented DSH internal.
 
+The normative lifecycle, security, recovery, and release requirements are defined in the
+[Desktop Runtime Reliability and Release Acceptance specification](specs/DESKTOP-RUNTIME-RELIABILITY.md).
+
 ## Contracts owned by Axon Auto Agent
 
 The following contracts will stay deliberately small until the first complete task
@@ -149,6 +152,8 @@ rebuildable from stored events so refresh and restart cannot disagree with live 
 
 ## Open technical decisions
 
+- [ ] Replace the compatibility OpenAI loop with native DSH Agent Loop/profile composition
+  behind the current Runtime contract and a pinned plugin-tree fixture.
 - [ ] Complete signed/notarized macOS and Windows clean-machine install tests before
   declaring the shell final. Boot, typed IPC, Utility Process restart, and unsigned macOS
   directory packaging already have automated coverage.
